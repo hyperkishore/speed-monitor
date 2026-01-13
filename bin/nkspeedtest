@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const readline = require('readline');
 
-const VERSION = '1.0.2';
+const VERSION = '1.0.3';
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'nkspeedtest');
 const DATA_DIR = path.join(os.homedir(), '.local', 'share', 'nkspeedtest');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
@@ -386,6 +386,16 @@ async function cmdMenuBar() {
   if (!fs.existsSync(SWIFTBAR_PLUGINS_DIR)) {
     console.log(colors.blue('Creating SwiftBar plugins directory...'));
     fs.mkdirSync(SWIFTBAR_PLUGINS_DIR, { recursive: true });
+  }
+
+  // Auto-configure SwiftBar to use our plugins directory (skip the folder picker dialog)
+  console.log(colors.blue('Configuring SwiftBar...'));
+  try {
+    execSync(`defaults write com.ameba.SwiftBar PluginDirectory "${SWIFTBAR_PLUGINS_DIR}"`, { stdio: 'ignore' });
+    execSync('defaults write com.ameba.SwiftBar SUHasLaunchedBefore -bool true', { stdio: 'ignore' });
+    execSync('defaults write com.ameba.SwiftBar MakePluginExecutable -bool true', { stdio: 'ignore' });
+  } catch (err) {
+    console.log(colors.yellow('Could not auto-configure SwiftBar preferences'));
   }
 
   // Generate the SwiftBar plugin (using array join to avoid template literal issues with $)
