@@ -516,22 +516,135 @@ function cmdLogs() {
 
 function cmdDashboard() {
   ensureDirs();
-  const dashboardHtml = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>NK Speed Test</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui;background:#1a1a2e;color:#eee;padding:20px}
-h1{color:#00d4ff;margin-bottom:20px}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:15px;margin-bottom:20px}
-.card{background:#16213e;border-radius:12px;padding:20px;text-align:center}.val{font-size:2rem;color:#00d4ff}
-.chart-box{background:#16213e;border-radius:12px;padding:20px}canvas{max-height:300px}</style></head>
-<body><h1>NK Speed Test Dashboard</h1>
-<div class="stats"><div class="card"><div class="val" id="avgD">--</div><div>Avg Download</div></div>
-<div class="card"><div class="val" id="avgU">--</div><div>Avg Upload</div></div>
-<div class="card"><div class="val" id="avgP">--</div><div>Avg Ping</div></div>
-<div class="card"><div class="val" id="cnt">--</div><div>Tests</div></div></div>
-<div class="chart-box"><canvas id="chart"></canvas></div>
-<script>fetch('speed_log.csv').then(r=>r.text()).then(t=>{const l=t.trim().split('\\n'),d=l.slice(1).map(r=>{const c=r.split(',');return{time:c[2],down:+c[5],up:+c[6],ping:+c[7],status:c[10]}}).filter(x=>x.status==='success');if(!d.length)return;const r=d.slice(-50);document.getElementById('avgD').textContent=(d.reduce((s,x)=>s+x.down,0)/d.length).toFixed(1);document.getElementById('avgU').textContent=(d.reduce((s,x)=>s+x.up,0)/d.length).toFixed(1);document.getElementById('avgP').textContent=(d.reduce((s,x)=>s+x.ping,0)/d.length).toFixed(1);document.getElementById('cnt').textContent=d.length;new Chart(document.getElementById('chart'),{type:'line',data:{labels:r.map(x=>x.time),datasets:[{label:'Download',data:r.map(x=>x.down),borderColor:'#00d4ff',tension:.3},{label:'Upload',data:r.map(x=>x.up),borderColor:'#00ff88',tension:.3}]},options:{responsive:true,plugins:{legend:{labels:{color:'#888'}}},scales:{x:{ticks:{color:'#666'}},y:{ticks:{color:'#666'}}}}})});</script></body></html>`;
 
+  const dashboardLines = [
+    '<!DOCTYPE html>',
+    '<html><head><meta charset="UTF-8"><title>NK Speed Test</title>',
+    '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>',
+    '<style>',
+    '*{margin:0;padding:0;box-sizing:border-box}',
+    'body{font-family:system-ui;background:#1a1a2e;color:#eee;padding:20px}',
+    'h1{color:#00d4ff;margin-bottom:10px}',
+    '.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px}',
+    '.filter-box{display:flex;align-items:center;gap:10px}',
+    'select{background:#16213e;color:#eee;border:1px solid #00d4ff;border-radius:8px;padding:8px 12px;font-size:14px;cursor:pointer}',
+    'select:focus{outline:none;border-color:#00ff88}',
+    '.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:15px;margin-bottom:20px}',
+    '.card{background:#16213e;border-radius:12px;padding:20px;text-align:center}',
+    '.val{font-size:2rem;color:#00d4ff}',
+    '.label{color:#888;font-size:0.9rem}',
+    '.chart-box{background:#16213e;border-radius:12px;padding:20px;margin-bottom:20px}',
+    'canvas{max-height:300px}',
+    '.network-info{background:#16213e;border-radius:12px;padding:15px;margin-bottom:20px}',
+    '.network-info h3{color:#00d4ff;margin-bottom:10px}',
+    '.ssid-list{display:flex;flex-wrap:wrap;gap:10px}',
+    '.ssid-tag{background:#0d1526;padding:8px 12px;border-radius:20px;font-size:0.85rem}',
+    '.ssid-tag .count{color:#00d4ff;margin-left:5px}',
+    '</style></head>',
+    '<body>',
+    '<div class="header">',
+    '  <h1>NK Speed Test Dashboard</h1>',
+    '  <div class="filter-box">',
+    '    <label>Filter by Network:</label>',
+    '    <select id="ssidFilter" onchange="filterData()">',
+    '      <option value="all">All Networks</option>',
+    '    </select>',
+    '  </div>',
+    '</div>',
+    '<div class="stats">',
+    '  <div class="card"><div class="val" id="avgD">--</div><div class="label">Avg Download (Mbps)</div></div>',
+    '  <div class="card"><div class="val" id="avgU">--</div><div class="label">Avg Upload (Mbps)</div></div>',
+    '  <div class="card"><div class="val" id="avgP">--</div><div class="label">Avg Ping (ms)</div></div>',
+    '  <div class="card"><div class="val" id="cnt">--</div><div class="label">Tests</div></div>',
+    '</div>',
+    '<div class="network-info">',
+    '  <h3>Networks Detected</h3>',
+    '  <div class="ssid-list" id="ssidList"></div>',
+    '</div>',
+    '<div class="chart-box"><canvas id="chart"></canvas></div>',
+    '<script>',
+    'let allData = [];',
+    'let chart = null;',
+    '',
+    'async function loadData() {',
+    '  const response = await fetch("speed_log.csv");',
+    '  const text = await response.text();',
+    '  const lines = text.trim().split("\\n");',
+    '  allData = lines.slice(1).map(row => {',
+    '    const c = row.split(",");',
+    '    return {',
+    '      time: c[2],',
+    '      date: c[1],',
+    '      user: c[3],',
+    '      down: +c[5],',
+    '      up: +c[6],',
+    '      ping: +c[7],',
+    '      ssid: c[8],',
+    '      status: c[10]',
+    '    };',
+    '  }).filter(x => x.status === "success");',
+    '',
+    '  // Populate SSID filter',
+    '  const ssids = [...new Set(allData.map(d => d.ssid))];',
+    '  const select = document.getElementById("ssidFilter");',
+    '  ssids.forEach(ssid => {',
+    '    const opt = document.createElement("option");',
+    '    opt.value = ssid;',
+    '    opt.textContent = ssid;',
+    '    select.appendChild(opt);',
+    '  });',
+    '',
+    '  // Show SSID tags',
+    '  const ssidCounts = {};',
+    '  allData.forEach(d => { ssidCounts[d.ssid] = (ssidCounts[d.ssid] || 0) + 1; });',
+    '  const ssidList = document.getElementById("ssidList");',
+    '  ssidList.innerHTML = Object.entries(ssidCounts).map(([ssid, count]) =>',
+    '    `<div class="ssid-tag">${ssid}<span class="count">(${count})</span></div>`',
+    '  ).join("");',
+    '',
+    '  filterData();',
+    '}',
+    '',
+    'function filterData() {',
+    '  const filter = document.getElementById("ssidFilter").value;',
+    '  const data = filter === "all" ? allData : allData.filter(d => d.ssid === filter);',
+    '',
+    '  if (!data.length) return;',
+    '',
+    '  const recent = data.slice(-50);',
+    '  document.getElementById("avgD").textContent = (data.reduce((s,x) => s+x.down, 0) / data.length).toFixed(1);',
+    '  document.getElementById("avgU").textContent = (data.reduce((s,x) => s+x.up, 0) / data.length).toFixed(1);',
+    '  document.getElementById("avgP").textContent = (data.reduce((s,x) => s+x.ping, 0) / data.length).toFixed(1);',
+    '  document.getElementById("cnt").textContent = data.length;',
+    '',
+    '  if (chart) chart.destroy();',
+    '  chart = new Chart(document.getElementById("chart"), {',
+    '    type: "line",',
+    '    data: {',
+    '      labels: recent.map(x => x.time),',
+    '      datasets: [',
+    '        {label: "Download", data: recent.map(x => x.down), borderColor: "#00d4ff", tension: 0.3},',
+    '        {label: "Upload", data: recent.map(x => x.up), borderColor: "#00ff88", tension: 0.3}',
+    '      ]',
+    '    },',
+    '    options: {',
+    '      responsive: true,',
+    '      plugins: {legend: {labels: {color: "#888"}}},',
+    '      scales: {x: {ticks: {color: "#666"}}, y: {ticks: {color: "#666"}}}',
+    '    }',
+    '  });',
+    '}',
+    '',
+    'loadData();',
+    '</script>',
+    '</body></html>',
+  ];
+
+  const dashboardHtml = dashboardLines.join('\n');
   fs.writeFileSync(path.join(DATA_DIR, 'dashboard.html'), dashboardHtml);
+
+  // Kill any existing server on port 8765
+  try { execSync('lsof -ti:8765 | xargs kill -9 2>/dev/null', { stdio: 'ignore' }); } catch {}
 
   console.log('Starting dashboard at http://localhost:8765');
   const server = spawn('python3', ['-m', 'http.server', '8765'], { cwd: DATA_DIR, detached: true, stdio: 'ignore' });
