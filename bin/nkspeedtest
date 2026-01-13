@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const readline = require('readline');
 
-const VERSION = '1.0.3';
+const VERSION = '1.0.4';
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'nkspeedtest');
 const DATA_DIR = path.join(os.homedir(), '.local', 'share', 'nkspeedtest');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
@@ -468,18 +468,27 @@ async function cmdMenuBar() {
 
   console.log(colors.green('Menu bar widget installed!'));
 
-  // Check if SwiftBar is running
+  // Kill SwiftBar if running to force it to pick up new preferences
+  console.log(colors.blue('Restarting SwiftBar...'));
   try {
-    execSync('pgrep -x SwiftBar', { stdio: 'ignore' });
-    console.log(colors.blue('Refreshing SwiftBar...'));
+    execSync('pkill -x SwiftBar 2>/dev/null || true', { stdio: 'ignore' });
+  } catch {}
+
+  // Wait a moment for it to fully quit
+  execSync('sleep 1');
+
+  // Start SwiftBar fresh
+  console.log(colors.blue('Starting SwiftBar...'));
+  execSync('open -a SwiftBar', { stdio: 'ignore' });
+
+  // Wait for it to start and refresh
+  execSync('sleep 2');
+  try {
     execSync('open -g swiftbar://refreshallplugins', { stdio: 'ignore' });
-  } catch {
-    console.log(colors.yellow('\nSwiftBar is not running. Starting it...'));
-    execSync('open -a SwiftBar', { stdio: 'ignore' });
-  }
+  } catch {}
 
   console.log(colors.green('\nDone! You should see the speed widget in your menu bar.'));
-  console.log('If not, click the SwiftBar icon → Refresh All');
+  console.log('If not visible, check System Settings → Control Center → Menu Bar Only');
 }
 
 function cmdUpdate() {
