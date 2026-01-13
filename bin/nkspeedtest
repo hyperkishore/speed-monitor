@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const readline = require('readline');
 
-const VERSION = '1.0.4';
+const VERSION = '1.0.5';
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'nkspeedtest');
 const DATA_DIR = path.join(os.homedir(), '.local', 'share', 'nkspeedtest');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
@@ -488,7 +488,12 @@ async function cmdMenuBar() {
   } catch {}
 
   console.log(colors.green('\nDone! You should see the speed widget in your menu bar.'));
-  console.log('If not visible, check System Settings → Control Center → Menu Bar Only');
+  console.log(`
+If not visible, check these macOS settings:
+  1. System Settings → Privacy & Security → Accessibility → Enable SwiftBar
+  2. System Settings → Privacy & Security → Automation → Allow SwiftBar
+  3. If SwiftBar asks for a folder, select: ~/Library/Application Support/SwiftBar/Plugins
+`);
 }
 
 function cmdUpdate() {
